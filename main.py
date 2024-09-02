@@ -64,14 +64,17 @@ def withdrawal(account_total_sum):
 
     return value
 
-def excerpt(transactions, money_sum):
+def statement(transactions, money_sum):
     print(f"""
     ======================================
     Extrato detalhado:
     """)
 
-    for transaction in transactions:
-        print(f"\t{transaction}")
+    if(len(transactions) <= 0):
+        print("    Nenhuma transação foi realizada!")
+    else:
+        for transaction in transactions:
+            print(f"\t{transaction}")
     
     print(f"""
     Total na conta: {money_sum:.2f}
@@ -109,7 +112,7 @@ if __name__ == '__main__':
                     print("você atingiu o limite máximo de saques hoje. Por valor, volte amanhã!")
             
             else:
-                excerpt(transactions, money_sum)
+                statement(transactions, money_sum)
 
     except KeyboardInterrupt:
         quit_system()
