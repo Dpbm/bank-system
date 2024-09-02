@@ -1,0 +1,17 @@
+deposito
+- depositar valores positivos 
+- nao precisa de numero da agencia nem conta bancaria 
+- todo deposito deve ser armazenado em uma variavel 
+
+
+extrato
+- exibir depositos
+- exibir saques
+- exibir o saldo atual no final
+- exibir no formato R$ xxx.xx
+
+saque
+- no maximo 3 saques diarios 
+- limite de 500 por saque 
+- se nn tiver saldo ele informa uma mensagem de  erro 
+- armazenar todos os saques 
