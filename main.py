@@ -1,7 +1,183 @@
+from datetime import datetime
+from abc import ABC, abstractmethod, abstractproperty
+
+class Historico:
+    def __init__(self):
+        self._transacoes = []
+    
+    def adicionar_transacao(self, transacao):
+        self._transacoes.append({
+                    "tipo":transacao.__class__.__name__,
+                    "valor": transacao.valor,
+                    "data": datetime.now().strftime("%d-%m-%Y %H:%M:%s") 
+                })
+
+    @property
+    def transacoes(self):
+        return self._transacoes
+
+class Conta:
+    def __init__(self, numero, cliente):
+        self._saldo = 0
+        self._numero = numero
+        self._agencia = '0001'
+        self._cliente = cliente
+        self._historico = Historico()
+
+    @property
+    def saldo(self):
+        return self._saldo
+
+    @property
+    def numero(self):
+        return self._numero
+
+    @property
+    def agencia(self):
+        return self._agencia
+
+    @property
+    def historico(self):
+        return self._historico
+
+    @property
+    def cliente(self):
+        return self._cliente
+
+    @classmethod
+    def nova_conta(cls, cliente, numero):
+        return cls(numero, cliente)
+
+    def sacar(self, valor):
+        if(self.saldo < valor):
+            print("Você não tem dinheiro suficiente para realizar esse saque!")
+            return False
+        elif(valor <= 0):
+            print("O valor informado deve ser maior do que zero!")
+            return False
+
+        self._saldo -= valor
+        return True
+
+    def depositar(self, valor):
+        if(valor <= 0):
+            print("Valor informado deve ser positivo e diferente de zero!")
+            return False
+        
+        self._saldo += valor
+        return True
+
+    def __str__(self):
+        return f"""
+            Conta: {self.numero}
+            Saldo: {self.saldo}
+            Agência: {self.agencia}
+            Titular: {self.cliente.nome}
+        """
+
+class ContaCorrente(Conta):
+    def __init__(self, numero, cliente):
+        super().__init__(numero, cliente)
+        self._limite = 500
+        self._limite_saques = 3
+    
+    def sacar(self, valor):
+        total_transacoes = sum([
+            1 for transacao in self.historico.transacoes if transacao["tipo"] == Saque.__name__
+        ])
+
+        if(valor > self._limite):
+            print("Esse valor ultrapassa o limite maximo por transação")
+            return False
+        elif (total_transacoes > self._limite_saques):
+            print("Você atingiu o valor máximo de saques hoje")
+            return False
+
+        return super().sacar(valor)
+
+
+class Transacao(ABC): 
+    @property
+    @abstractproperty
+    def valor(self):
+        pass
+
+    @abstractmethod
+    def registrar(self, conta):
+        pass
+
+class Cliente:
+    def __init__(self, endereco):
+        self._endereco = endereco
+        self._contas = []
+    
+    def realizar_transacao(self, conta, transacao):
+        transacao.registrar(conta)
+
+    def adicionar_conta(self, conta):
+        self._contas.append(conta)
+
+    @property
+    def contas(self):
+        return self._contas
+
+class PessoaFisica(Cliente):
+    def __init__(self, cpf, nome, data_nascimento, endereco):
+        super().__init__(endereco)
+        self._cpf = cpf
+        self._nome = nome
+        self._data_nascimento = data_nascimento
+
+    @property
+    def cpf(self):
+        return self._cpf
+
+    @property
+    def nome(self):
+        return self._nome
+
+    @property
+    def data_nascimento(self):
+        return self._data_nascimento
+
+    @property
+    def endereco(self):
+        return self._endereco
+
+class Deposito(Transacao):
+    def __init__(self, valor):
+        self._valor = valor
+
+    @property
+    def valor(self):
+        return self._valor
+
+    def registrar(self, conta):
+        sucesso = conta.depositar(self.valor)
+        
+        if(sucesso):
+            conta.historico.adicionar_transacao(self)
+
+    
+
+class Saque(Transacao):
+    def __init__(self, valor):
+        self._valor = valor
+    
+    @property
+    def valor(self):
+        return self._valor
+    
+    def registrar(self, conta):
+        sucesso = conta.sacar(self.valor)
+        
+        if(sucesso):
+            conta.historico.adicionar_transacao(self)
+
 def menu():
-    OPTIONS = ('d', 'e', 's', 'q', 'nu', 'na', 'la')
-    invalid = True
-    selected_option = ''
+    OPCOES = ('d', 'e', 's', 'q', 'nu', 'na', 'la')
+    invalido = True
+    opcao_selecionada = ''
 
     print(f"""
     ======================================
@@ -16,163 +192,176 @@ def menu():
     ======================================
     """)
     
-    while invalid:    
-        selected_option = input("==> ")
-        invalid = selected_option not in OPTIONS
+    while invalido:    
+        opcao_selecionada = input("==> ")
+        invalido = opcao_selecionada not in OPCOES
 
-        if(invalid):
+        if(invalido):
             print("Opção inválida. Por favor, tente novamente!")
     
-    return selected_option
+    return opcao_selecionada
 
-def quit_system():
+def sair():
     import sys 
     print("Obrigado por utilizar nosso sistema!")    
     sys.exit(0)
 
-def update_history(history, text):
-    history.append(text)
+def depositar(clientes):
+    cpf = input("==> informe o cpf: ")
 
-def deposit(value, amount, history, /):
-    if(value <= 0):
-       print("Valor informado deve ser positivo e diferente de zero!")
-       return amount
+    cliente = [c for c in clientes if c.cpf == cpf]
+    if(len(cliente) <= 0):
+        print("Cliente inexistente")
+        return
+    cliente = cliente[0]
 
-    update_history(history, f'+ R$ {value:.2f}')
-    return amount + value
+    valor = float(input("==> informe o valor do deposito: "))
+     
+    if(len(cliente.contas) <= 0):
+        print("Este cliente não possui nenhuma conta asssociada")
+        return
 
-def withdrawal(*, value, amount, max_amount, max_withdrawals_per_day, total_withdrawal_today, history):
-    exceded_total = value > amount
-    exceded_max_value = value > max_amount
-    exceded_withdrawals_per_day = total_withdrawal_today >= max_withdrawals_per_day
-    invalid_number = value <= 0
-    invalid = exceded_max_value or exceded_total or invalid_number or exceded_withdrawals_per_day
+    conta = cliente.contas[0]
+
+    transacao = Deposito(valor)
+    cliente.realizar_transacao(conta, transacao)
+
+def sacar(clientes):
+    cpf = input("==> informe o cpf: ")
+
+    cliente = [c for c in clientes if c.cpf == cpf]
+    if(len(cliente) <= 0):
+        print("Cliente inexistente")
+        return
+    cliente = cliente[0]
+    valor = float(input("==> informe o valor do saque: "))
+
+    if(not cliente.contas):
+        print("Este cliente não possui nenhuma conta associada")
+        return
+
+    conta = cliente.contas[0]
+
+    transacao = Saque(valor)
+    cliente.realizar_transacao(conta, transacao)
+
+def crirar_cliente(clientes):
+    cpf = input("==> CPF: ")
+
+    mesmo_cpf = len([1 for cliente in clientes if cliente.cpf]) >= 1
+
+    if(mesmo_cpf):
+        print("Usuário já cadastrado!")
+        return
+
+    nome = input("==> Nome: ")
+    data_nascimento = input("==> Data de nascimento (dd-mm-aaaa): ")
+    endereco = input("==> Endereço (logradouro, nro - bairro - cidade/sigla estado): ")
     
-    if(exceded_total):
-        print("Você não tem dinheiro suficiente para realizar esse saque!")
-    if(exceded_max_value):
-        print(f"O valor informado ultrapassa o limite do saque (R$ {max_amount:.2f})")
-    if(invalid_number):
-        print("O valor informado deve ser maior do que zero!")
-    if(exceded_withdrawals_per_day):
-        print(f"Você ultrapassou o maximo de saques hoje (maximo {max_withdrawals_per_day} por dia)!")
+    cliente = PessoaFisica(cpf, nome, data_nascimento, endereco)
+    clientes.append(cliente)
 
-    if(invalid):
-       return (amount, total_withdrawal_today)
+    print("Usuário criado com sucesso")
 
-    update_history(history, f'- R$ {value:.2f}')
-    return (amount-value, total_withdrawal_today+1) 
+def criar_conta(numero, clientes, contas):
+    cpf = input("==> Informe o CPF: ")
 
-def statement(amount, /, *, history):
+    cliente = [cliente for cliente in clientes if cliente.cpf == cpf]
+    cliente_existe = len(cliente)>=1
+
+    if(not cliente_existe):
+        print("Usuário não existe!")
+        return
+
+    cliente = cliente[0]
+
+    conta = ContaCorrente.nova_conta(cliente, numero)
+    cliente.adicionar_conta(conta)
+    contas.append(conta)
+
+    print("Conta criada com sucesso")
+
+def listar_contas(contas):
+    
+    if(len(contas) <= 0):
+        print("Nenhuma conta foi adicionada!")
+        return
+
+    print("\nContas:")
+    for conta in contas:
+        print('*'*50)
+        print(conta)
+        print('*'*50)
+
+def extrato(clientes):
+    cpf = input("==> Informe o CPF: ")
+
+    cliente = [cliente for cliente in clientes if cliente.cpf == cpf]
+    cliente_existe = len(cliente)>=1
+
+    if(not cliente_existe):
+        print("Usuário não existe!")
+        return
+
+    cliente = cliente[0]
+    
+    if(len(cliente.contas) <= 0):
+        print("Usuário não possui nenhuma conta associada")
+        return
+
+    conta = cliente.contas[0]
+    transacoes = conta.historico.transacoes
+
     print(f"""
     ======================================
     Extrato detalhado:
     """)
 
-    if(len(history) <= 0):
+    if(len(transacoes) <= 0):
         print("    Nenhuma transação foi realizada!")
     else:
-        for transaction in history:
-            print(f"\t{transaction}")
+        for transacao in transacoes:
+            symbol = "+" if transacao['tipo'] == 'Deposito' else "-"
+            print(f"\t{symbol} R$ {transacao['valor']:.2f}")
     
     print(f"""
-    Total na conta: {amount:.2f}
+    Total na conta: {conta.saldo:.2f}
     ======================================
     """)
 
-def get_user(users, cpf):
-    users_found = [user for user in users if user['cpf'] == cpf]
-    return users_found[0] if len(users_found)>0 else None
-
-def create_user(users):
-    cpf = input("==> CPF: ")
-
-    if(get_user(users, cpf) is not None):
-        print("Usuário já cadastrado!")
-        return
-
-    name = input("==> Nome: ")
-    birth = input("==> Data de nascimento (dd-mm-aaaa): ")
-    address = input("==> Endereço (logradouro, nro - bairro - cidade/sigla estado): ")
-    users.append({'cpf':cpf, 'name':name, 'birth':birth, 'address':address})
-
-    print("Usuário criado com sucesso")
-
-def create_account(agency, account_number, users, accounts):
-    cpf = input("==> Informe o CPF: ")
-
-    user = get_user(users, cpf)
-    if(user is None):
-        print("Usuário não existe!")
-        return
-
-    accounts.append({"agency":agency, "account_number":account_number, 'cpf':cpf})
-
-def list_accounts(users, accounts):
-    
-    if(len(accounts) <= 0):
-        print("Nenhuma conta foi adicionada!")
-        return
-
-    print("\nContas:")
-    for account in accounts:
-        print('*'*50)
-        print(f"Agência: {account['agency']}")
-        print(f"Número da conta: {account['account_number']}")
-        user = get_user(users, account['cpf'])
-        print(f"Titular: {user['name']}")
-        print('*'*50)
-
 if __name__ == '__main__':
-    MAX_WITHDRAWAL_PER_DAY = 3
-    MAX_WITHDRAWAL_VALUE = 500
-    total_withdrawal_today = 0
-    
-    AGENCY = '0001'
 
-    users = []
-    accounts = []
-
-    amount = 0
-    transactions = []
+    clientes = []
+    contas = []
 
     try:
         while True:
-            selected_option = menu()
+            opcao = menu()
 
-            if(selected_option == 'q'):
-                quit_system()
+            if(opcao == 'q'):
+                sair()
 
-            elif(selected_option == 'd'):
-                value = float(input("==> Valor do depósito: ")) 
-                amount = deposit(value, amount, transactions)
+            elif(opcao == 'd'):
+                depositar(clientes)
 
-            elif(selected_option == 's'):
-                value = float(input("==> Valor do saque: "))        
-                amount, total_withdrawal_today = withdrawal(
-                    value=value,
-                    amount=amount,
-                    max_amount=MAX_WITHDRAWAL_VALUE,
-                    max_withdrawals_per_day=MAX_WITHDRAWAL_PER_DAY,
-                    total_withdrawal_today=total_withdrawal_today,
-                    history=transactions,
-                )
+            elif(opcao == 's'):
+                sacar(clientes)
             
-            elif(selected_option == 'nu'):
-                create_user(users)
+            elif(opcao == 'nu'):
+                crirar_cliente(clientes)
 
-            elif(selected_option == 'na'):
-                account_number = len(accounts)+1
-                create_account(AGENCY, account_number, users, accounts)
+            elif(opcao == 'na'):
+                numero = len(contas)+1
+                criar_conta(numero, clientes, contas)
 
-            elif(selected_option == 'la'):
-                list_accounts(users, accounts)
+            elif(opcao == 'la'):
+                listar_contas(contas)
 
             else:
-                statement(amount, history=transactions)
+                extrato(clientes)
 
     except KeyboardInterrupt:
-        quit_system()
+        sair()
     except Exception as error:
         print(f"Ocorreu um erro: {str(error)}")
-        quit_system()
+        sair()
